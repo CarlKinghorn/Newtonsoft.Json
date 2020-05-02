@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 #if !HAVE_LINQ
 using Newtonsoft.Json.Utilities.LinqBridge;
 #else
@@ -24,12 +25,19 @@ namespace Newtonsoft.Json.Linq.JsonPath
         GreaterThanOrEquals = 7,
         And = 8,
         Or = 9,
-        RegexEquals = 10
+        RegexEquals = 10,
+        StrictEquals = 11,
+        StrictNotEquals = 12
     }
 
     internal abstract class QueryExpression
     {
-        public QueryOperator Operator { get; set; }
+        internal QueryOperator Operator;
+
+        public QueryExpression(QueryOperator @operator)
+        {
+            Operator = @operator;
+        }
 
         public abstract bool IsMatch(JToken root, JToken t);
     }
@@ -38,7 +46,7 @@ namespace Newtonsoft.Json.Linq.JsonPath
     {
         public List<QueryExpression> Expressions { get; set; }
 
-        public CompositeExpression()
+        public CompositeExpression(QueryOperator @operator) : base(@operator)
         {
             Expressions = new List<QueryExpression>();
         }
@@ -73,10 +81,16 @@ namespace Newtonsoft.Json.Linq.JsonPath
 
     internal class BooleanQueryExpression : QueryExpression
     {
-        public object Left { get; set; }
-        public object Right { get; set; }
+        public readonly object Left;
+        public readonly object? Right;
 
-        private IEnumerable<JToken> GetResult(JToken root, JToken t, object o)
+        public BooleanQueryExpression(QueryOperator @operator, object left, object? right) : base(@operator)
+        {
+            Left = left;
+            Right = right;
+        }
+
+        private IEnumerable<JToken> GetResult(JToken root, JToken t, object? o)
         {
             if (o is JToken resultToken)
             {
@@ -140,8 +154,20 @@ namespace Newtonsoft.Json.Linq.JsonPath
                             return true;
                         }
                         break;
+                    case QueryOperator.StrictEquals:
+                        if (EqualsWithStrictMatch(leftValue, rightValue))
+                        {
+                            return true;
+                        }
+                        break;
                     case QueryOperator.NotEquals:
                         if (!EqualsWithStringCoercion(leftValue, rightValue))
+                        {
+                            return true;
+                        }
+                        break;
+                    case QueryOperator.StrictNotEquals:
+                        if (!EqualsWithStrictMatch(leftValue, rightValue))
                         {
                             return true;
                         }
@@ -196,20 +222,28 @@ namespace Newtonsoft.Json.Linq.JsonPath
                 return false;
             }
 
-            string regexText = (string)pattern.Value;
+            string regexText = (string)pattern.Value!;
             int patternOptionDelimiterIndex = regexText.LastIndexOf('/');
 
             string patternText = regexText.Substring(1, patternOptionDelimiterIndex - 1);
             string optionsText = regexText.Substring(patternOptionDelimiterIndex + 1);
 
-            return Regex.IsMatch((string)input.Value, patternText, MiscellaneousUtils.GetRegexOptions(optionsText));
+            return Regex.IsMatch((string)input.Value!, patternText, MiscellaneousUtils.GetRegexOptions(optionsText));
         }
 
-        private bool EqualsWithStringCoercion(JValue value, JValue queryValue)
+        internal static bool EqualsWithStringCoercion(JValue value, JValue queryValue)
         {
             if (value.Equals(queryValue))
             {
                 return true;
+            }
+
+            // Handle comparing an integer with a float
+            // e.g. Comparing 1 and 1.0
+            if ((value.Type == JTokenType.Integer && queryValue.Type == JTokenType.Float)
+                || (value.Type == JTokenType.Float && queryValue.Type == JTokenType.Integer))
+            {
+                return JValue.Compare(value.Type, value.Value, queryValue.Value) == 0;
             }
 
             if (queryValue.Type != JTokenType.String)
@@ -217,7 +251,7 @@ namespace Newtonsoft.Json.Linq.JsonPath
                 return false;
             }
 
-            string queryValueString = (string)queryValue.Value;
+            string queryValueString = (string)queryValue.Value!;
 
             string currentValueString;
 
@@ -235,27 +269,49 @@ namespace Newtonsoft.Json.Linq.JsonPath
                         else
 #endif
                         {
-                            DateTimeUtils.WriteDateTimeString(writer, (DateTime)value.Value, DateFormatHandling.IsoDateFormat, null, CultureInfo.InvariantCulture);
+                            DateTimeUtils.WriteDateTimeString(writer, (DateTime)value.Value!, DateFormatHandling.IsoDateFormat, null, CultureInfo.InvariantCulture);
                         }
 
                         currentValueString = writer.ToString();
                     }
                     break;
                 case JTokenType.Bytes:
-                    currentValueString = Convert.ToBase64String((byte[])value.Value);
+                    currentValueString = Convert.ToBase64String((byte[])value.Value!);
                     break;
                 case JTokenType.Guid:
                 case JTokenType.TimeSpan:
-                    currentValueString = value.Value.ToString();
+                    currentValueString = value.Value!.ToString();
                     break;
                 case JTokenType.Uri:
-                    currentValueString = ((Uri)value.Value).OriginalString;
+                    currentValueString = ((Uri)value.Value!).OriginalString;
                     break;
                 default:
                     return false;
             }
 
             return string.Equals(currentValueString, queryValueString, StringComparison.Ordinal);
+        }
+
+        internal static bool EqualsWithStrictMatch(JValue value, JValue queryValue)
+        {
+            MiscellaneousUtils.Assert(value != null);
+            MiscellaneousUtils.Assert(queryValue != null);
+
+            // Handle comparing an integer with a float
+            // e.g. Comparing 1 and 1.0
+            if ((value.Type == JTokenType.Integer && queryValue.Type == JTokenType.Float)
+                || (value.Type == JTokenType.Float && queryValue.Type == JTokenType.Integer))
+            {
+                return JValue.Compare(value.Type, value.Value, queryValue.Value) == 0;
+            }
+
+            // we handle floats and integers the exact same way, so they are pseudo equivalent
+            if (value.Type != queryValue.Type)
+            {
+                return false;
+            }
+
+            return value.Equals(queryValue);
         }
     }
 }

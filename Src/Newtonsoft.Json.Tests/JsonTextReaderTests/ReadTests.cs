@@ -62,6 +62,16 @@ namespace Newtonsoft.Json.Tests.JsonTextReaderTests
     public class ReadTests : TestFixtureBase
     {
         [Test]
+        public void Read_EmptyStream_ReturnsFalse()
+        {
+            MemoryStream ms = new MemoryStream();
+            StreamReader sr = new StreamReader(ms);
+
+            JsonTextReader reader = new JsonTextReader(sr);
+            Assert.IsFalse(reader.Read());
+        }
+
+        [Test]
         public void ReadAsInt32_IntegerTooLarge_ThrowsJsonReaderException()
         {
             JValue token = new JValue(long.MaxValue);
@@ -79,7 +89,8 @@ namespace Newtonsoft.Json.Tests.JsonTextReaderTests
 
             ExceptionAssert.Throws<JsonReaderException>(
                 () => token.CreateReader().ReadAsDecimal(),
-                "Could not convert to decimal: 1.79769313486232E+308. Path ''."
+                "Could not convert to decimal: 1.79769313486232E+308. Path ''.",
+                "Could not convert to decimal: 1.7976931348623157E+308. Path ''."
             );
         }
 
@@ -1732,6 +1743,32 @@ third line", jsonTextReader.Value);
             while (reader.Read())
             {
             }
+        }
+
+        [Test]
+        public void ThrowOnDuplicateKeysDeserializing()
+        {
+            string json = @"
+                {
+                    ""a"": 1,
+                    ""b"": [
+                        {
+                            ""c"": {
+                                ""d"": 1,
+                                ""d"": ""2""
+                            }
+                        }
+                    ]
+                }
+            ";
+
+            JsonLoadSettings settings = new JsonLoadSettings {DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error};
+
+            JsonTextReader reader = new JsonTextReader(new StringReader(json));
+            ExceptionAssert.Throws<JsonException>(() =>
+            {
+                JToken.ReadFrom(reader, settings);
+            });
         }
     }
 }

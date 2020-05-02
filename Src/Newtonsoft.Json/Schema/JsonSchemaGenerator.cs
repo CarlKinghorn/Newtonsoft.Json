@@ -37,6 +37,8 @@ using System.Linq;
 
 #endif
 
+#nullable disable
+
 namespace Newtonsoft.Json.Schema
 {
     /// <summary>
@@ -44,10 +46,10 @@ namespace Newtonsoft.Json.Schema
     /// Generates a <see cref="JsonSchema"/> from a specified <see cref="Type"/>.
     /// </para>
     /// <note type="caution">
-    /// JSON Schema validation has been moved to its own package. See <see href="http://www.newtonsoft.com/jsonschema">http://www.newtonsoft.com/jsonschema</see> for more details.
+    /// JSON Schema validation has been moved to its own package. See <see href="https://www.newtonsoft.com/jsonschema">https://www.newtonsoft.com/jsonschema</see> for more details.
     /// </note>
     /// </summary>
-    [Obsolete("JSON Schema validation has been moved to its own package. See http://www.newtonsoft.com/jsonschema for more details.")]
+    [Obsolete("JSON Schema validation has been moved to its own package. See https://www.newtonsoft.com/jsonschema for more details.")]
     public class JsonSchemaGenerator
     {
         /// <summary>
@@ -173,7 +175,7 @@ namespace Newtonsoft.Json.Schema
         {
             JsonContainerAttribute containerAttribute = JsonTypeReflector.GetCachedAttribute<JsonContainerAttribute>(type);
 
-            if (!string.IsNullOrEmpty(containerAttribute?.Title))
+            if (!StringUtils.IsNullOrEmpty(containerAttribute?.Title))
             {
                 return containerAttribute.Title;
             }
@@ -185,7 +187,7 @@ namespace Newtonsoft.Json.Schema
         {
             JsonContainerAttribute containerAttribute = JsonTypeReflector.GetCachedAttribute<JsonContainerAttribute>(type);
 
-            if (!string.IsNullOrEmpty(containerAttribute?.Description))
+            if (!StringUtils.IsNullOrEmpty(containerAttribute?.Description))
             {
                 return containerAttribute.Description;
             }
@@ -202,7 +204,7 @@ namespace Newtonsoft.Json.Schema
         {
             JsonContainerAttribute containerAttribute = JsonTypeReflector.GetCachedAttribute<JsonContainerAttribute>(type);
 
-            if (!string.IsNullOrEmpty(containerAttribute?.Id))
+            if (!StringUtils.IsNullOrEmpty(containerAttribute?.Id))
             {
                 return containerAttribute.Id;
             }
@@ -230,7 +232,7 @@ namespace Newtonsoft.Json.Schema
             string resolvedId = GetTypeId(type, false);
             string explicitId = GetTypeId(type, true);
 
-            if (!string.IsNullOrEmpty(resolvedId))
+            if (!StringUtils.IsNullOrEmpty(resolvedId))
             {
                 JsonSchema resolvedSchema = _resolver.GetSchema(resolvedId);
                 if (resolvedSchema != null)
